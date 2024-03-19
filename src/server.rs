@@ -3,7 +3,9 @@
 //! Provides an async `run` function that listens for inbound connections,
 //! spawning a task per connection.
 
-use crate::{Command, Connection, Db, DbDropGuard, Shutdown};
+// use crate::{Command, Connection, Db, DbDropGuard, Shutdown};
+
+use crate::{Connection, Db, DbDropGuard, Shutdown};
 
 use std::future::Future;
 use std::sync::Arc;
@@ -321,8 +323,8 @@ impl Handler {
         while !self.shutdown.is_shutdown() {
             // While reading a request frame, also listen for the shutdown
             // signal.
-            let maybe_frame = tokio::select! {
-                res = self.connection.read_frame() => res?,
+            let maybe_message = tokio::select! {
+                res = self.connection.read_message() => res?,
                 _ = self.shutdown.recv() => {
                     // If a shutdown signal is received, return from `run`.
                     // This will result in the task terminating.
@@ -333,15 +335,17 @@ impl Handler {
             // If `None` is returned from `read_frame()` then the peer closed
             // the socket. There is no further work to do and the task can be
             // terminated.
-            let frame = match maybe_frame {
-                Some(frame) => frame,
+            let message = match maybe_message {
+                Some(message) => message,
                 None => return Ok(()),
             };
 
             // Convert the redis frame into a command struct. This returns an
             // error if the frame is not a valid redis command or it is an
             // unsupported command.
-            let cmd = Command::from_frame(frame)?;
+            println!("received message is: {}", message);
+            // let cmd = Command::from_message(message)?;
+            // println!("after cmd");
 
             // Logs the `cmd` object. The syntax here is a shorthand provided by
             // the `tracing` crate. It can be thought of as similar to:
@@ -352,7 +356,7 @@ impl Handler {
             //
             // `tracing` provides structured logging, so information is "logged"
             // as key-value pairs.
-            debug!(?cmd);
+            // debug!(?cmd);
 
             // Perform the work needed to apply the command. This may mutate the
             // database state as a result.
@@ -361,8 +365,8 @@ impl Handler {
             // command to write response frames directly to the connection. In
             // the case of pub/sub, multiple frames may be send back to the
             // peer.
-            cmd.apply(&self.db, &mut self.connection, &mut self.shutdown)
-                .await?;
+            // cmd.apply(&self.db, &mut self.connection, &mut self.shutdown)
+            //     .await?;
         }
 
         Ok(())

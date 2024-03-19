@@ -1,4 +1,4 @@
-use crate::frame::{self, Frame};
+use crate::message::{self, Message};
 
 use bytes::{Buf, BytesMut};
 use std::io::{self, Cursor};
@@ -53,13 +53,16 @@ impl Connection {
     /// On success, the received frame is returned. If the `TcpStream`
     /// is closed in a way that doesn't break a frame in half, it returns
     /// `None`. Otherwise, an error is returned.
-    pub async fn read_frame(&mut self) -> crate::Result<Option<Frame>> {
+    pub async fn read_message(&mut self) -> crate::Result<Option<Message>> {
         loop {
             // Attempt to parse a frame from the buffered data. If enough data
             // has been buffered, the frame is returned.
-            if let Some(frame) = self.parse_frame()? {
+            if let Some(frame) = self.parse_message()? {
+                println!("in read_frame, in let Some");
                 return Ok(Some(frame));
             }
+
+            println!("in read_frame, after let Some");
 
             // There is not enough buffered data to read a frame. Attempt to
             // read more data from the socket.
@@ -84,8 +87,8 @@ impl Connection {
     /// data, the frame is returned and the data removed from the buffer. If not
     /// enough data has been buffered yet, `Ok(None)` is returned. If the
     /// buffered data does not represent a valid frame, `Err` is returned.
-    fn parse_frame(&mut self) -> crate::Result<Option<Frame>> {
-        use frame::Error::Incomplete;
+    fn parse_message(&mut self) -> crate::Result<Option<Message>> {
+        use message::Error::Incomplete;
 
         // Cursor is used to track the "current" location in the
         // buffer. Cursor also implements `Buf` from the `bytes` crate
@@ -98,7 +101,8 @@ impl Connection {
         // parse of the frame, and allows us to skip allocating data structures
         // to hold the frame data unless we know the full frame has been
         // received.
-        match Frame::check(&mut buf) {
+        //match Frame::check(&mut buf) {
+        match Message::check(&mut buf) {
             Ok(_) => {
                 // The `check` function will have advanced the cursor until the
                 // end of the frame. Since the cursor had position set to zero
@@ -117,7 +121,9 @@ impl Connection {
                 // If the encoded frame representation is invalid, an error is
                 // returned. This should terminate the **current** connection
                 // but should not impact any other connected client.
-                let frame = Frame::parse(&mut buf)?;
+                let message = Message::parse(&mut buf)?;
+
+                println!("Message is: {}", message);
 
                 // Discard the parsed data from the read buffer.
                 //
@@ -128,7 +134,7 @@ impl Connection {
                 self.buffer.advance(len);
 
                 // Return the parsed frame to the caller.
-                Ok(Some(frame))
+                Ok(Some(message))
             }
             // There is not enough data present in the read buffer to parse a
             // single frame. We must wait for more data to be received from the
@@ -153,25 +159,22 @@ impl Connection {
     /// syscalls. However, it is fine to call these functions on a *buffered*
     /// write stream. The data will be written to the buffer. Once the buffer is
     /// full, it is flushed to the underlying socket.
-    pub async fn write_frame(&mut self, frame: &Frame) -> io::Result<()> {
+    pub async fn write_message(&mut self, message: &Message) -> io::Result<()> {
         // Arrays are encoded by encoding each entry. All other frame types are
         // considered literals. For now, mini-redis is not able to encode
         // recursive frame structures. See below for more details.
-        match frame {
-            Frame::Array(val) => {
+        match message {
+            Message::Simple(val) => {
                 // Encode the frame type prefix. For an array, it is `*`.
                 self.stream.write_u8(b'*').await?;
 
                 // Encode the length of the array.
                 self.write_decimal(val.len() as u64).await?;
 
-                // Iterate and encode each entry in the array.
-                for entry in &**val {
-                    self.write_value(entry).await?;
-                }
+                self.write_value(message).await?;
             }
             // The frame type is a literal. Encode the value directly.
-            _ => self.write_value(frame).await?,
+            _ => self.write_value(message).await?,
         }
 
         // Ensure the encoded frame is written to the socket. The calls above
@@ -181,38 +184,21 @@ impl Connection {
     }
 
     /// Write a frame literal to the stream
-    async fn write_value(&mut self, frame: &Frame) -> io::Result<()> {
-        match frame {
-            Frame::Simple(val) => {
+    async fn write_value(&mut self, message: &Message) -> io::Result<()> {
+        match message {
+            Message::Simple(val) => {
                 self.stream.write_u8(b'+').await?;
                 self.stream.write_all(val.as_bytes()).await?;
                 self.stream.write_all(b"\r\n").await?;
             }
-            Frame::Error(val) => {
+            Message::Error(val) => {
                 self.stream.write_u8(b'-').await?;
                 self.stream.write_all(val.as_bytes()).await?;
                 self.stream.write_all(b"\r\n").await?;
             }
-            Frame::Integer(val) => {
-                self.stream.write_u8(b':').await?;
-                self.write_decimal(*val).await?;
-            }
-            Frame::Null => {
+            Message::Null => {
                 self.stream.write_all(b"$-1\r\n").await?;
             }
-            Frame::Bulk(val) => {
-                let len = val.len();
-
-                self.stream.write_u8(b'$').await?;
-                self.write_decimal(len as u64).await?;
-                self.stream.write_all(val).await?;
-                self.stream.write_all(b"\r\n").await?;
-            }
-            // Encoding an `Array` from within a value cannot be done using a
-            // recursive strategy. In general, async fns do not support
-            // recursion. Mini-redis has not needed to encode nested arrays yet,
-            // so for now it is skipped.
-            Frame::Array(_val) => unreachable!(),
         }
 
         Ok(())

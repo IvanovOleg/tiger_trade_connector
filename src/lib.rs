@@ -25,24 +25,21 @@
 //!   intermediate representation between a "command" and the byte
 //!   representation.
 
-pub mod clients;
-pub use clients::{BlockingClient, BufferedClient, Client};
-
-pub mod cmd;
-pub use cmd::Command;
+// pub mod cmd;
+// pub use cmd::Command;
 
 mod connection;
 pub use connection::Connection;
 
-pub mod frame;
-pub use frame::Frame;
+pub mod message;
+pub use message::Message;
 
 mod db;
 use db::Db;
 use db::DbDropGuard;
 
-mod parse;
-use parse::{Parse, ParseError};
+// mod parse;
+// use parse::{Parse, ParseError};
 
 pub mod server;
 

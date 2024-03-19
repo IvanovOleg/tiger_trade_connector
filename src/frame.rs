@@ -63,106 +63,215 @@ impl Frame {
     }
 
     /// Checks if an entire message can be decoded from `src`
+    // pub fn check(src: &mut Cursor<&[u8]>) -> Result<(), Error> {
+    //     match get_u8(src)? {
+    //         b'+' => {
+    //             get_line(src)?;
+    //             Ok(())
+    //         }
+    //         b'-' => {
+    //             get_line(src)?;
+    //             Ok(())
+    //         }
+    //         b':' => {
+    //             let _ = get_decimal(src)?;
+    //             Ok(())
+    //         }
+    //         b'$' => {
+    //             if b'-' == peek_u8(src)? {
+    //                 // Skip '-1\r\n'
+    //                 skip(src, 4)
+    //             } else {
+    //                 // Read the bulk string
+    //                 let len: usize = get_decimal(src)?.try_into()?;
+
+    //                 // skip that number of bytes + 2 (\r\n).
+    //                 skip(src, len + 2)
+    //             }
+    //         }
+    //         b'*' => {
+    //             let len = get_decimal(src)?;
+
+    //             for _ in 0..len {
+    //                 Frame::check(src)?;
+    //             }
+
+    //             Ok(())
+    //         }
+    //         actual => Err(format!("protocol error; invalid frame type byte `{}`", actual).into()),
+    //     }
+    // }
+
+    /// Checks if an entire message can be decoded from `src`
     pub fn check(src: &mut Cursor<&[u8]>) -> Result<(), Error> {
         match get_u8(src)? {
-            b'+' => {
-                get_line(src)?;
+            b"API" => {
+                get_api_line(src)?;
                 Ok(())
             }
-            b'-' => {
-                get_line(src)?;
-                Ok(())
-            }
-            b':' => {
-                let _ = get_decimal(src)?;
-                Ok(())
-            }
-            b'$' => {
-                if b'-' == peek_u8(src)? {
-                    // Skip '-1\r\n'
-                    skip(src, 4)
-                } else {
-                    // Read the bulk string
-                    let len: usize = get_decimal(src)?.try_into()?;
+            // b'-' => {
+            //     get_line(src)?;
+            //     Ok(())
+            // }
+            // b':' => {
+            //     let _ = get_decimal(src)?;
+            //     Ok(())
+            // }
+            // b'$' => {
+            //     if b'-' == peek_u8(src)? {
+            //         // Skip '-1\r\n'
+            //         skip(src, 4)
+            //     } else {
+            //         // Read the bulk string
+            //         let len: usize = get_decimal(src)?.try_into()?;
 
-                    // skip that number of bytes + 2 (\r\n).
-                    skip(src, len + 2)
-                }
-            }
-            b'*' => {
-                let len = get_decimal(src)?;
+            //         // skip that number of bytes + 2 (\r\n).
+            //         skip(src, len + 2)
+            //     }
+            // }
+            // b'*' => {
+            //     let len = get_decimal(src)?;
 
-                for _ in 0..len {
-                    Frame::check(src)?;
-                }
+            //     for _ in 0..len {
+            //         Frame::check(src)?;
+            //     }
 
-                Ok(())
-            }
-            actual => Err(format!("protocol error; invalid frame type byte `{}`", actual).into()),
+            //     Ok(())
+            // }
+            actual => Err(format!("protocol error; invalid frame type byte `{:?}`", actual).into()),
         }
     }
 
     /// The message has already been validated with `check`.
+    // pub fn parse(src: &mut Cursor<&[u8]>) -> Result<Frame, Error> {
+    //     match get_u8(src)? {
+    //         b'+' => {
+    //             // Read the line and convert it to `Vec<u8>`
+    //             let line = get_line(src)?.to_vec();
+
+    //             // Convert the line to a String
+    //             let string = String::from_utf8(line)?;
+
+    //             Ok(Frame::Simple(string))
+    //         }
+    //         b'-' => {
+    //             // Read the line and convert it to `Vec<u8>`
+    //             let line = get_line(src)?.to_vec();
+
+    //             // Convert the line to a String
+    //             let string = String::from_utf8(line)?;
+
+    //             Ok(Frame::Error(string))
+    //         }
+    //         b':' => {
+    //             let len = get_decimal(src)?;
+    //             Ok(Frame::Integer(len))
+    //         }
+    //         b'$' => {
+    //             if b'-' == peek_u8(src)? {
+    //                 let line = get_line(src)?;
+
+    //                 if line != b"-1" {
+    //                     return Err("protocol error; invalid frame format".into());
+    //                 }
+
+    //                 Ok(Frame::Null)
+    //             } else {
+    //                 // Read the bulk string
+    //                 let len = get_decimal(src)?.try_into()?;
+    //                 let n = len + 2;
+
+    //                 if src.remaining() < n {
+    //                     return Err(Error::Incomplete);
+    //                 }
+
+    //                 let data = Bytes::copy_from_slice(&src.chunk()[..len]);
+
+    //                 // skip that number of bytes + 2 (\r\n).
+    //                 skip(src, n)?;
+
+    //                 Ok(Frame::Bulk(data))
+    //             }
+    //         }
+    //         b'*' => {
+    //             let len = get_decimal(src)?.try_into()?;
+    //             let mut out = Vec::with_capacity(len);
+
+    //             for _ in 0..len {
+    //                 out.push(Frame::parse(src)?);
+    //             }
+
+    //             Ok(Frame::Array(out))
+    //         }
+    //         _ => unimplemented!(),
+    //     }
+    // }
+
     pub fn parse(src: &mut Cursor<&[u8]>) -> Result<Frame, Error> {
+        println!("inside parse");
         match get_u8(src)? {
-            b'+' => {
+            b"API" => {
+                println!("Matched API inside parse");
                 // Read the line and convert it to `Vec<u8>`
-                let line = get_line(src)?.to_vec();
+                let line = get_api_line(src)?.to_vec();
+
+                println!("after get_line in parse");
 
                 // Convert the line to a String
                 let string = String::from_utf8(line)?;
+                println!("{}", string);
 
                 Ok(Frame::Simple(string))
             }
-            b'-' => {
-                // Read the line and convert it to `Vec<u8>`
-                let line = get_line(src)?.to_vec();
+            // b'-' => {
+            //     // Read the line and convert it to `Vec<u8>`
+            //     let line = get_line(src)?.to_vec();
 
-                // Convert the line to a String
-                let string = String::from_utf8(line)?;
+            //     // Convert the line to a String
+            //     let string = String::from_utf8(line)?;
 
-                Ok(Frame::Error(string))
-            }
-            b':' => {
-                let len = get_decimal(src)?;
-                Ok(Frame::Integer(len))
-            }
-            b'$' => {
-                if b'-' == peek_u8(src)? {
-                    let line = get_line(src)?;
+            //     Ok(Frame::Error(string))
+            // }
+            // b':' => {
+            //     let len = get_decimal(src)?;
+            //     Ok(Frame::Integer(len))
+            // }
+            // b'$' => {
+            //     if b'-' == peek_u8(src)? {
+            //         let line = get_line(src)?;
 
-                    if line != b"-1" {
-                        return Err("protocol error; invalid frame format".into());
-                    }
+            //         if line != b"-1" {
+            //             return Err("protocol error; invalid frame format".into());
+            //         }
 
-                    Ok(Frame::Null)
-                } else {
-                    // Read the bulk string
-                    let len = get_decimal(src)?.try_into()?;
-                    let n = len + 2;
+            //         Ok(Frame::Null)
+            //     } else {
+            //         // Read the bulk string
+            //         let len = get_decimal(src)?.try_into()?;
+            //         let n = len + 2;
 
-                    if src.remaining() < n {
-                        return Err(Error::Incomplete);
-                    }
+            //         if src.remaining() < n {
+            //             return Err(Error::Incomplete);
+            //         }
 
-                    let data = Bytes::copy_from_slice(&src.chunk()[..len]);
+            //         let data = Bytes::copy_from_slice(&src.chunk()[..len]);
 
-                    // skip that number of bytes + 2 (\r\n).
-                    skip(src, n)?;
+            //         // skip that number of bytes + 2 (\r\n).
+            //         skip(src, n)?;
 
-                    Ok(Frame::Bulk(data))
-                }
-            }
-            b'*' => {
-                let len = get_decimal(src)?.try_into()?;
-                let mut out = Vec::with_capacity(len);
+            //         Ok(Frame::Bulk(data))
+            //     }
+            // }
+            // b'*' => {
+            //     let len = get_decimal(src)?.try_into()?;
+            //     let mut out = Vec::with_capacity(len);
 
-                for _ in 0..len {
-                    out.push(Frame::parse(src)?);
-                }
+            //     for _ in 0..len {
+            //         out.push(Frame::parse(src)?);
+            //     }
 
-                Ok(Frame::Array(out))
-            }
+            //     Ok(Frame::Array(out))
+            // }
             _ => unimplemented!(),
         }
     }
@@ -220,12 +329,20 @@ fn peek_u8(src: &mut Cursor<&[u8]>) -> Result<u8, Error> {
     Ok(src.chunk()[0])
 }
 
-fn get_u8(src: &mut Cursor<&[u8]>) -> Result<u8, Error> {
+// fn get_u8(src: &mut Cursor<&[u8]>) -> Result<u8, Error> {
+//     if !src.has_remaining() {
+//         return Err(Error::Incomplete);
+//     }
+
+//     Ok(src.get_u8())
+// }
+
+fn get_u8<'a>(src: &mut Cursor<&'a [u8]>) -> Result<&'a [u8], Error> {
     if !src.has_remaining() {
         return Err(Error::Incomplete);
     }
 
-    Ok(src.get_u8())
+    return Ok(&src.get_ref()[0..3]);
 }
 
 fn skip(src: &mut Cursor<&[u8]>, n: usize) -> Result<(), Error> {
@@ -260,6 +377,34 @@ fn get_line<'a>(src: &mut Cursor<&'a [u8]>) -> Result<&'a [u8], Error> {
 
             // Return the line
             return Ok(&src.get_ref()[start..i]);
+        }
+    }
+
+    Err(Error::Incomplete)
+}
+
+/// Find a line
+fn get_api_line<'a>(src: &mut Cursor<&'a [u8]>) -> Result<&'a [u8], Error> {
+    // Scan the bytes directly
+    let start = src.position() as usize;
+    // Scan to the second to last byte
+    let end = src.get_ref().len();
+
+    println!("Start position is: {}", start);
+    println!("End position is: {}", end);
+    println!("Ref is: {:?}", src.get_ref());
+
+    // find what goes after tab sign '\t' it should be api version range like "v100..176"
+    for i in start..end {
+        println!("i is: {}", i);
+        if src.get_ref()[i] == b'\t' && src.get_ref()[i + 1] == b'v' {
+            println!("found API line");
+            // We found the api line, update the position to be *after* the 'v'
+            println!("before setting position is: {}", i);
+            src.set_position((i + 2) as u64);
+
+            // Return the line
+            return Ok(&src.get_ref()[..end]);
         }
     }
 

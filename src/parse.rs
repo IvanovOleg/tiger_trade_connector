@@ -1,18 +1,17 @@
-use crate::Frame;
+use crate::Message;
 
 use bytes::Bytes;
 use std::{fmt, str, vec};
 
 /// Utility for parsing a command
 ///
-/// Commands are represented as array frames. Each entry in the frame is a
-/// "token". A `Parse` is initialized with the array frame and provides a
-/// cursor-like API. Each command struct includes a `parse_frame` method that
-/// uses a `Parse` to extract its fields.
+/// Parse entity should contain message's fields
 #[derive(Debug)]
 pub(crate) struct Parse {
     /// Array frame iterator.
-    parts: vec::IntoIter<Frame>,
+    /// we need to fill that vector with message content
+    /// fields are separated by '\0'
+    parts: vec::IntoIter<Message>,
 }
 
 /// Error encountered while parsing a frame.
@@ -33,10 +32,12 @@ impl Parse {
     /// Create a new `Parse` to parse the contents of `frame`.
     ///
     /// Returns `Err` if `frame` is not an array frame.
-    pub(crate) fn new(frame: Frame) -> Result<Parse, ParseError> {
-        let array = match frame {
-            Frame::Array(array) => array,
-            frame => return Err(format!("protocol error; expected array, got {:?}", frame).into()),
+    pub(crate) fn new(message: Message) -> Result<Parse, ParseError> {
+        let array = match message {
+            Message::Array(array) => array,
+            message => {
+                return Err(format!("protocol error; expected array, got {:?}", message).into())
+            }
         };
 
         Ok(Parse {
@@ -46,7 +47,7 @@ impl Parse {
 
     /// Return the next entry. Array frames are arrays of frames, so the next
     /// entry is a frame.
-    fn next(&mut self) -> Result<Frame, ParseError> {
+    fn next(&mut self) -> Result<Message, ParseError> {
         self.parts.next().ok_or(ParseError::EndOfStream)
     }
 
@@ -60,8 +61,8 @@ impl Parse {
             //
             // While errors are stored as strings, they are considered separate
             // types.
-            Frame::Simple(s) => Ok(s),
-            Frame::Bulk(data) => str::from_utf8(&data[..])
+            Message::Simple(s) => Ok(s),
+            Message::Bulk(data) => str::from_utf8(&data[..])
                 .map(|s| s.to_string())
                 .map_err(|_| "protocol error; invalid string".into()),
             frame => Err(format!(
@@ -82,8 +83,8 @@ impl Parse {
             //
             // Although errors are stored as strings and could be represented as
             // raw bytes, they are considered separate types.
-            Frame::Simple(s) => Ok(Bytes::from(s.into_bytes())),
-            Frame::Bulk(data) => Ok(data),
+            Message::Simple(s) => Ok(Bytes::from(s.into_bytes())),
+            Message::Bulk(data) => Ok(data),
             frame => Err(format!(
                 "protocol error; expected simple frame or bulk frame, got {:?}",
                 frame
@@ -106,11 +107,11 @@ impl Parse {
 
         match self.next()? {
             // An integer frame type is already stored as an integer.
-            Frame::Integer(v) => Ok(v),
+            Message::Integer(v) => Ok(v),
             // Simple and bulk frames must be parsed as integers. If the parsing
             // fails, an error is returned.
-            Frame::Simple(data) => atoi::<u64>(data.as_bytes()).ok_or_else(|| MSG.into()),
-            Frame::Bulk(data) => atoi::<u64>(&data).ok_or_else(|| MSG.into()),
+            Message::Simple(data) => atoi::<u64>(data.as_bytes()).ok_or_else(|| MSG.into()),
+            Message::Bulk(data) => atoi::<u64>(&data).ok_or_else(|| MSG.into()),
             frame => Err(format!("protocol error; expected int frame but got {:?}", frame).into()),
         }
     }
