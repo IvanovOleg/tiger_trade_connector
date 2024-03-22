@@ -164,16 +164,6 @@ impl Connection {
         // considered literals. For now, mini-redis is not able to encode
         // recursive frame structures. See below for more details.
         match message {
-            Message::Simple(val) => {
-                // Encode the frame type prefix. For an array, it is `*`.
-                self.stream.write_u8(b'*').await?;
-
-                // Encode the length of the array.
-                self.write_decimal(val.len() as u64).await?;
-
-                self.write_value(message).await?;
-            }
-            // The frame type is a literal. Encode the value directly.
             _ => self.write_value(message).await?,
         }
 
@@ -186,16 +176,22 @@ impl Connection {
     /// Write a frame literal to the stream
     async fn write_value(&mut self, message: &Message) -> io::Result<()> {
         match message {
-            Message::Simple(val) => {
-                self.stream.write_u8(b'+').await?;
-                self.stream.write_all(val.as_bytes()).await?;
-                self.stream.write_all(b"\r\n").await?;
+            Message::Bulk(val) => {
+                let len = val.len();
+
+                self.stream.write_u8(b'$').await?;
+                self.write_decimal(len as u64).await?;
+                self.stream.write_all(val).await?;
             }
-            Message::Error(val) => {
-                self.stream.write_u8(b'-').await?;
-                self.stream.write_all(val.as_bytes()).await?;
-                self.stream.write_all(b"\r\n").await?;
+
+            Message::Handshake(val) => {
+                let len = val.len();
+
+                self.stream.write_u8(b'$').await?;
+                self.write_decimal(len as u64).await?;
+                self.stream.write_all(val).await?;
             }
+
             Message::Null => {
                 self.stream.write_all(b"$-1\r\n").await?;
             }

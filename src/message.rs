@@ -11,8 +11,8 @@ use std::string::FromUtf8Error;
 /// A message in the TWS protocol.
 #[derive(Clone, Debug)]
 pub enum Message {
-    Simple(String),
-    Error(String),
+    Handshake(Bytes),
+    Bulk(Bytes),
     Null,
 }
 
@@ -50,14 +50,7 @@ impl Message {
                 println!("Matched API inside parse");
                 // Read the line and convert it to `Vec<u8>`
                 let line = get_line(src)?.to_vec();
-
-                println!("after get_line in parse");
-
-                // Convert the line to a String
-                let string = String::from_utf8(line)?;
-                println!("{}", string);
-
-                Ok(Message::Simple(string))
+                Ok(Message::Handshake(line.into()))
             }
             _ => unimplemented!(),
         }
@@ -72,7 +65,7 @@ impl Message {
 impl PartialEq<&str> for Message {
     fn eq(&self, other: &&str) -> bool {
         match self {
-            Message::Simple(s) => s.eq(other),
+            Message::Bulk(s) => s.eq(other),
             _ => false,
         }
     }
@@ -83,8 +76,14 @@ impl fmt::Display for Message {
         use std::str;
 
         match self {
-            Message::Simple(response) => response.fmt(fmt),
-            Message::Error(msg) => write!(fmt, "error: {}", msg),
+            Message::Handshake(msg) => match str::from_utf8(msg) {
+                Ok(string) => string.fmt(fmt),
+                Err(_) => write!(fmt, "{:?}", msg),
+            },
+            Message::Bulk(msg) => match str::from_utf8(msg) {
+                Ok(string) => string.fmt(fmt),
+                Err(_) => write!(fmt, "{:?}", msg),
+            },
             Message::Null => "(nil)".fmt(fmt),
         }
     }

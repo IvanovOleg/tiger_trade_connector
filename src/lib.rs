@@ -34,9 +34,9 @@ pub use connection::Connection;
 pub mod message;
 pub use message::Message;
 
-mod db;
-use db::Db;
-use db::DbDropGuard;
+// mod db;
+// use db::Db;
+// use db::DbDropGuard;
 
 // mod parse;
 // use parse::{Parse, ParseError};
